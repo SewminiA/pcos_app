@@ -63,7 +63,7 @@ if st.button("Predict PCOS Risk"):
             'Follicle No. (R)', 'Avg. F size (L) (mm)'
         ])
 
-        shap_values = explainer.shap_values(input_df)
+        shap_values = explainer.shap_values(input_df.astype(float))
 
         # Feature importance values
         feature_importance = pd.DataFrame({
@@ -95,3 +95,4 @@ if st.button("Predict PCOS Risk"):
 
     except Exception as e:
         st.warning(f"⚠️ SHAP explainability not supported in this environment. Error: {e}")
+
