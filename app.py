@@ -53,19 +53,19 @@ if st.button("Predict PCOS Risk"):
         # -------------------------------
     # 🧠 SHAP Explainability (Fixed)
     # -------------------------------
+        # -------------------------------
+    # 🧠 SHAP Explainability (Final Fixed Version)
+    # -------------------------------
     import shap
 
     st.subheader("🧠 Feature Contribution (SHAP Explanation)")
 
     try:
-        # Use TreeExplainer explicitly for XGBoost
-        booster = model.get_booster()
-        explainer = shap.TreeExplainer(booster)
+        # ✅ Convert all values safely to numeric
+        features_clean = np.array(features, dtype=float)
 
-        # Convert all features to float to prevent string issues
-        features = features.astype(float)
-
-        input_df = pd.DataFrame(features, columns=[
+        # Create dataframe for SHAP
+        input_df = pd.DataFrame(features_clean, columns=[
             'Weight (Kg)', 'Cycle(R/I)', 'FSH(mIU/mL)', 'LH(mIU/mL)',
             'FSH/LH', 'Waist:Hip Ratio', 'AMH(ng/mL)', 'PRL(ng/mL)',
             'Weight gain(Y/N)', 'hair growth(Y/N)',
@@ -73,38 +73,61 @@ if st.button("Predict PCOS Risk"):
             'Follicle No. (R)', 'Avg. F size (L) (mm)'
         ])
 
+        # ✅ Use booster directly for SHAP TreeExplainer
+        booster = model.get_booster()
+        explainer = shap.TreeExplainer(booster)
+
+        # Compute SHAP values
         shap_values = explainer.shap_values(input_df)
 
-        # Feature importance values
+        # Prepare feature importance
         feature_importance = pd.DataFrame({
             'Feature': input_df.columns,
             'SHAP Value': shap_values[0],
-            'Input Value': features[0]
+            'Input Value': features_clean[0]
         }).sort_values(by='SHAP Value', key=abs, ascending=False)
 
-        # Display top influencing features
+        # Display as table
         st.write("### Top Features Influencing This Prediction:")
         st.dataframe(feature_importance.head(5))
 
-        # Generate readable explanations
+        # Human-readable text explanation
         explanation_text = []
         for _, row in feature_importance.head(5).iterrows():
-            if row['SHAP Value'] > 0:
-                explanation_text.append(f"🔺 **{row['Feature']}** ({row['Input Value']:.2f}) increased PCOS risk.")
-            else:
-                explanation_text.append(f"🔻 **{row['Feature']}** ({row['Input Value']:.2f}) decreased PCOS risk.")
+            direction = "increased" if row['SHAP Value'] > 0 else "decreased"
+            explanation_text.append(
+                f"💡 **{row['Feature']}** (value: {row['Input Value']:.2f}) "
+                f"{direction} PCOS risk."
+            )
 
         st.markdown("### 🧩 Model Interpretation Summary:")
         for text in explanation_text:
             st.markdown(text)
 
-        # SHAP Bar plot
+        # Bar chart (instead of waterfall for single input)
         fig, ax = plt.subplots()
         shap.summary_plot(shap_values, input_df, plot_type="bar", show=False, max_display=5)
         st.pyplot(fig)
 
     except Exception as e:
-        st.warning(f"⚠️ SHAP explainability not supported in this environment. Error: {e}")
+        # Backup explanation when SHAP fails
+        st.warning(f"⚠️ SHAP explanation not supported here. Showing fallback insights.")
+
+        # Basic feature importance (model’s internal feature_importances_)
+        importance_df = pd.DataFrame({
+            'Feature': model.get_booster().feature_names,
+            'Importance': model.feature_importances_
+        }).sort_values(by='Importance', ascending=False)
+
+        st.write("### Top Contributing Features (Approximation):")
+        st.dataframe(importance_df.head(5))
+
+        st.markdown("""
+        _SHAP could not run in this environment (likely numeric format issue). 
+        The above shows approximate feature importance based on model’s internal calculations._
+        """)
+
+
 
 
 
