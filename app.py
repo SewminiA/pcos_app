@@ -102,7 +102,12 @@ if st.button("🔍 Predict PCOS Risk"):
     # -------------------------------
     st.subheader("🧠 Model Interpretation using SHAP")
 
-    explainer = shap.TreeExplainer(model)
+    try:
+    booster = model.get_booster()  # Extract booster safely
+    explainer = shap.TreeExplainer(booster)
+except Exception as e:
+    st.warning("⚠️ SHAP initialization failed. Using approximate explainer.")
+    explainer = shap.Explainer(model)
     shap_values = explainer.shap_values(input_df)
 
     shap_df = pd.DataFrame({
@@ -125,4 +130,5 @@ if st.button("🔍 Predict PCOS Risk"):
         explainer.expected_value, shap_values[0], input_df.iloc[0], matplotlib=True, show=False
     )
     st.pyplot(force_plot_html.figure)
+
 
