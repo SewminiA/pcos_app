@@ -48,7 +48,7 @@ if st.button("Predict PCOS Risk"):
     # -------------------------------
     # 🧠 SHAP Explainability (Improved)
     # -------------------------------
-    st.subheader("🧠 Feature Contribution (SHAP Explanation)")
+ 
 
         # -------------------------------
     # 🧠 SHAP Explainability (Fixed)
@@ -56,76 +56,94 @@ if st.button("Predict PCOS Risk"):
         # -------------------------------
     # 🧠 SHAP Explainability (Final Fixed Version)
     # -------------------------------
-    import shap
+    # -------------------------------
+# 🧠 SHAP Explainability with Medical-style Sentences
+# -------------------------------
+import shap
 
-    st.subheader("🧠 Feature Contribution (SHAP Explanation)")
+st.subheader("🧠 Feature Contribution (SHAP Explanation)")
 
-    try:
-        # ✅ Convert all values safely to numeric
-        features_clean = np.array(features, dtype=float)
+try:
+    # ✅ Clean numeric inputs
+    features_clean = np.array(features, dtype=float)
 
-        # Create dataframe for SHAP
-        input_df = pd.DataFrame(features_clean, columns=[
-            'Weight (Kg)', 'Cycle(R/I)', 'FSH(mIU/mL)', 'LH(mIU/mL)',
-            'FSH/LH', 'Waist:Hip Ratio', 'AMH(ng/mL)', 'PRL(ng/mL)',
-            'Weight gain(Y/N)', 'hair growth(Y/N)',
-            'Skin darkening (Y/N)', 'Follicle No. (L)',
-            'Follicle No. (R)', 'Avg. F size (L) (mm)'
-        ])
+    input_df = pd.DataFrame(features_clean, columns=[
+        'Weight (Kg)', 'Cycle(R/I)', 'FSH(mIU/mL)', 'LH(mIU/mL)',
+        'FSH/LH', 'Waist:Hip Ratio', 'AMH(ng/mL)', 'PRL(ng/mL)',
+        'Weight gain(Y/N)', 'hair growth(Y/N)',
+        'Skin darkening (Y/N)', 'Follicle No. (L)',
+        'Follicle No. (R)', 'Avg. F size (L) (mm)'
+    ])
 
-        # ✅ Use booster directly for SHAP TreeExplainer
-        booster = model.get_booster()
-        explainer = shap.TreeExplainer(booster)
+    booster = model.get_booster()
+    explainer = shap.TreeExplainer(booster)
+    shap_values = explainer.shap_values(input_df)
 
-        # Compute SHAP values
-        shap_values = explainer.shap_values(input_df)
+    feature_importance = pd.DataFrame({
+        'Feature': input_df.columns,
+        'SHAP Value': shap_values[0],
+        'Input Value': features_clean[0]
+    }).sort_values(by='SHAP Value', key=abs, ascending=False)
 
-        # Prepare feature importance
-        feature_importance = pd.DataFrame({
-            'Feature': input_df.columns,
-            'SHAP Value': shap_values[0],
-            'Input Value': features_clean[0]
-        }).sort_values(by='SHAP Value', key=abs, ascending=False)
+    st.write("### 🔝 Top Features Influencing Prediction:")
+    st.dataframe(feature_importance.head(5))
 
-        # Display as table
-        st.write("### Top Features Influencing This Prediction:")
-        st.dataframe(feature_importance.head(5))
+    # ✅ Human-like explanation with cause phrases
+    st.markdown("### 🧩 PCOS Risk Interpretation Summary:")
+    for _, row in feature_importance.head(5).iterrows():
+        direction = "increased" if row['SHAP Value'] > 0 else "decreased"
+        feature = row['Feature']
+        value = row['Input Value']
 
-        # Human-readable text explanation
-        explanation_text = []
-        for _, row in feature_importance.head(5).iterrows():
-            direction = "increased" if row['SHAP Value'] > 0 else "decreased"
-            explanation_text.append(
-                f"💡 **{row['Feature']}** (value: {row['Input Value']:.2f}) "
-                f"{direction} PCOS risk."
-            )
+        # 💬 Add domain-related phrases for major features
+        if "AMH" in feature:
+            reason = "High AMH levels are linked with greater ovarian activity."
+        elif "LH" in feature:
+            reason = "Elevated LH is commonly associated with hormonal imbalance in PCOS."
+        elif "FSH" in feature:
+            reason = "Low FSH may affect follicle growth and ovulation."
+        elif "FSH/LH" in feature:
+            reason = "A low FSH/LH ratio is a typical hormonal indicator of PCOS."
+        elif "Weight" in feature:
+            reason = "Higher weight can influence insulin resistance and hormone balance."
+        elif "Waist" in feature:
+            reason = "A high waist-to-hip ratio suggests fat distribution linked with PCOS risk."
+        elif "PRL" in feature:
+            reason = "Prolactin imbalance can affect reproductive hormones."
+        elif "hair" in feature:
+            reason = "Hair growth increase reflects androgen excess, a key PCOS feature."
+        elif "Skin" in feature:
+            reason = "Skin darkening indicates insulin-related hormonal effects."
+        elif "Follicle" in feature:
+            reason = "Follicle count changes reflect altered ovary response."
+        elif "F size" in feature:
+            reason = "Follicle size irregularity affects ovulation patterns."
+        else:
+            reason = "This feature influences PCOS risk through hormone or physical indicators."
 
-        st.markdown("### 🧩 Model Interpretation Summary:")
-        for text in explanation_text:
-            st.markdown(text)
+        st.markdown(
+            f"💡 **{feature}** (value: `{value:.2f}`) **{direction}** PCOS risk — {reason}"
+        )
 
-        # Bar chart (instead of waterfall for single input)
-        fig, ax = plt.subplots()
-        shap.summary_plot(shap_values, input_df, plot_type="bar", show=False, max_display=5)
-        st.pyplot(fig)
+    # ✅ Visualization
+    fig, ax = plt.subplots()
+    shap.summary_plot(shap_values, input_df, plot_type="bar", show=False, max_display=5)
+    st.pyplot(fig)
 
-    except Exception as e:
-        # Backup explanation when SHAP fails
-        st.warning(f"⚠️ SHAP explanation not supported here. Showing fallback insights.")
+except Exception as e:
+    st.warning("⚠️ SHAP explanation could not be generated. Showing approximate feature importance.")
+    importance_df = pd.DataFrame({
+        'Feature': model.get_booster().feature_names,
+        'Importance': model.feature_importances_
+    }).sort_values(by='Importance', ascending=False)
+    st.dataframe(importance_df.head(5))
+    st.markdown("""
+    _SHAP could not run in this environment (likely numeric format issue).
+    The above shows approximate feature importance instead._
+    """)
 
-        # Basic feature importance (model’s internal feature_importances_)
-        importance_df = pd.DataFrame({
-            'Feature': model.get_booster().feature_names,
-            'Importance': model.feature_importances_
-        }).sort_values(by='Importance', ascending=False)
 
-        st.write("### Top Contributing Features (Approximation):")
-        st.dataframe(importance_df.head(5))
-
-        st.markdown("""
-        _SHAP could not run in this environment (likely numeric format issue). 
-        The above shows approximate feature importance based on model’s internal calculations._
-        """)
+    
 
 
 
