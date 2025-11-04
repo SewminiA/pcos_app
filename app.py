@@ -2,139 +2,98 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import shap
-import joblib
 import xgboost as xgb
+import joblib
 import matplotlib.pyplot as plt
-import os
 
-# -------------------------------
-# 1. Page Config
-# -------------------------------
-st.set_page_config(page_title="PCOS Screening Tool", page_icon="💊", layout="centered")
+# Load trained model
+model = joblib.load("best_xgb_model.pkl")
 
-st.title("💊 PCOS Screening Tool (AI-powered)")
-st.markdown("This tool uses a trained XGBoost model and SHAP explainability to predict and interpret PCOS risk.")
+# App title
+st.title("💊 PCOS Screening Tool")
 
-# -------------------------------
-# 2. Load Trained Model
-# -------------------------------
-@st.cache_resource
-def load_model():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, "best_xgb_model.pkl")
+st.write("Enter your clinical and hormonal data below to assess PCOS risk:")
 
-    if not os.path.exists(model_path):
-        st.error("❌ 'best_xgb_model.pkl' not found! Please keep it in the same folder as app.py.")
-        st.stop()
+# User input
+weight = st.number_input("Weight (Kg)", 30, 150)
+cycle = st.selectbox("Cycle (R/I)", [0, 1])  # 0=Regular, 1=Irregular
+fsh = st.number_input("FSH (mIU/mL)", 0.1, 20.0)
+lh = st.number_input("LH (mIU/mL)", 0.1, 20.0)
+fsh_lh = st.number_input("FSH/LH", 0.1, 10.0)
+ratio = st.number_input("Waist:Hip Ratio", 0.5, 2.0)
+amh = st.number_input("AMH (ng/mL)", 0.1, 15.0)
+prl = st.number_input("PRL (ng/mL)", 1.0, 100.0)
+weight_gain = st.selectbox("Weight gain (Y/N)", [0, 1])
+hair_growth = st.selectbox("Hair growth (Y/N)", [0, 1])
+skin_dark = st.selectbox("Skin darkening (Y/N)", [0, 1])
+follicle_L = st.number_input("Follicle No. (L)", 0, 50)
+follicle_R = st.number_input("Follicle No. (R)", 0, 50)
+avg_size = st.number_input("Avg. F size (L) (mm)", 0.0, 30.0)
 
-    model = joblib.load(model_path)
-    return model
+# Arrange input in same order as model trained
+features = np.array([[weight, cycle, fsh, lh, fsh_lh, ratio, amh, prl,
+                      weight_gain, hair_growth, skin_dark,
+                      follicle_L, follicle_R, avg_size]])
 
-model = load_model()
+if st.button("Predict PCOS Risk"):
+    prediction = model.predict(features)[0]
+    prob = model.predict_proba(features)[0][1]
 
-# -------------------------------
-# 3. Define Input Features
-# -------------------------------
-selected_features = [
-    'Weight (Kg)', 'Cycle(R/I)', 'FSH(mIU/mL)', 'LH(mIU/mL)',
-    'FSH/LH', 'Waist:Hip Ratio', 'AMH(ng/mL)', 'PRL(ng/mL)',
-    'Weight gain(Y/N)', 'hair growth(Y/N)', 'Skin darkening (Y/N)',
-    'Follicle No. (L)', 'Follicle No. (R)', 'Avg. F size (L) (mm)'
-]
-
-# -------------------------------
-# 4. Collect User Input
-# -------------------------------
-st.header("🩺 Enter Your Medical Details")
-
-def user_input():
-    weight = st.number_input("Weight (Kg)", 30.0, 150.0, 60.0)
-    cycle = st.number_input("Cycle (R/I)", 15.0, 60.0, 28.0)
-    fsh = st.number_input("FSH (mIU/mL)", 0.1, 30.0, 6.0)
-    lh = st.number_input("LH (mIU/mL)", 0.1, 30.0, 8.0)
-    fsh_lh = fsh / lh if lh != 0 else 0
-    whr = st.number_input("Waist:Hip Ratio", 0.5, 1.5, 0.8)
-    amh = st.number_input("AMH (ng/mL)", 0.0, 20.0, 4.0)
-    prl = st.number_input("PRL (ng/mL)", 0.0, 100.0, 20.0)
-    wg = st.selectbox("Weight Gain (Y/N)", ["No", "Yes"])
-    hg = st.selectbox("Hair Growth (Y/N)", ["No", "Yes"])
-    sd = st.selectbox("Skin Darkening (Y/N)", ["No", "Yes"])
-    fol_l = st.number_input("Follicle No. (L)", 0, 30, 10)
-    fol_r = st.number_input("Follicle No. (R)", 0, 30, 10)
-    avg_fsize = st.number_input("Avg. F size (L) (mm)", 0.0, 25.0, 10.0)
-
-    data = {
-        'Weight (Kg)': weight,
-        'Cycle(R/I)': cycle,
-        'FSH(mIU/mL)': fsh,
-        'LH(mIU/mL)': lh,
-        'FSH/LH': fsh_lh,
-        'Waist:Hip Ratio': whr,
-        'AMH(ng/mL)': amh,
-        'PRL(ng/mL)': prl,
-        'Weight gain(Y/N)': 1 if wg == "Yes" else 0,
-        'hair growth(Y/N)': 1 if hg == "Yes" else 0,
-        'Skin darkening (Y/N)': 1 if sd == "Yes" else 0,
-        'Follicle No. (L)': fol_l,
-        'Follicle No. (R)': fol_r,
-        'Avg. F size (L) (mm)': avg_fsize
-    }
-    return pd.DataFrame([data])
-
-input_df = user_input()
-
-st.write("### 🧾 Input Summary", input_df)
-
-# -------------------------------
-# 5. Predict Risk
-# -------------------------------
-if st.button("🔍 Predict PCOS Risk"):
-    prediction = model.predict(input_df)
-    probability = model.predict_proba(input_df)[0][1]
-
-    if prediction[0] == 1:
-        st.error(f"⚠️ High Risk of PCOS (Confidence: {probability*100:.2f}%)")
+    st.subheader("🔍 Prediction Result:")
+    if prediction == 1:
+        st.error(f"⚠️ High Risk of PCOS (Probability: {prob:.2f})")
     else:
-        st.success(f"✅ Low Risk of PCOS (Confidence: {(1-probability)*100:.2f}%)")
+        st.success(f"✅ Low Risk of PCOS (Probability: {prob:.2f})")
 
+        # -------------------------------
+    # 🧠 SHAP Explainability (Improved)
     # -------------------------------
-    # -------------------------------
-# 6. SHAP Explainability (Safe Cloud Version)
-# -------------------------------
-st.subheader("🧠 Model Interpretation using SHAP")
+    import shap
 
-import shap
+    st.subheader("🧠 Feature Contribution (SHAP Explanation)")
 
-try:
-    # Try using XGBoost booster first (most reliable)
-    booster = model.get_booster()
-    explainer = shap.TreeExplainer(booster)
-    shap_values = explainer.shap_values(input_df)
-except Exception as e1:
     try:
-        # Try using TreeExplainer on model directly
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(input_df)
-    except Exception as e2:
-        st.warning("⚠️ SHAP visualization not supported in this environment.")
-        st.stop()
+        explainer = shap.Explainer(model)
+        shap_values = explainer(pd.DataFrame(features,
+            columns=['Weight (Kg)', 'Cycle(R/I)', 'FSH(mIU/mL)', 'LH(mIU/mL)',
+                     'FSH/LH', 'Waist:Hip Ratio', 'AMH(ng/mL)', 'PRL(ng/mL)',
+                     'Weight gain(Y/N)', 'hair growth(Y/N)',
+                     'Skin darkening (Y/N)', 'Follicle No. (L)',
+                     'Follicle No. (R)', 'Avg. F size (L) (mm)']))
 
-# Bar chart of top features
-st.write("### Most Influential Features for this Prediction:")
-shap_df = pd.DataFrame({
-    'Feature': input_df.columns,
-    'SHAP Value': shap_values[0]
-}).sort_values(by='SHAP Value', key=abs, ascending=False)
+        # Get feature importance values
+        feature_importance = pd.DataFrame({
+            'Feature': shap_values.feature_names,
+            'SHAP Value': shap_values.values[0],
+            'Input Value': features[0]
+        }).sort_values(by='SHAP Value', key=abs, ascending=False)
 
-top_features = shap_df.head(5)
-st.table(top_features)
+        # Show top contributing features as a table
+        st.write("### Top Features Influencing This Prediction:")
+        st.dataframe(feature_importance.head(5))
 
-# Optional SHAP plot
-fig, ax = plt.subplots()
-shap.summary_plot(shap_values, input_df, plot_type="bar", show=False)
-st.pyplot(fig)
+        # Generate readable explanations
+        explanation_text = []
+        for _, row in feature_importance.head(5).iterrows():
+            if row['SHAP Value'] > 0:
+                explanation_text.append(f"🔺 **{row['Feature']}** ({row['Input Value']}) increased PCOS risk.")
+            else:
+                explanation_text.append(f"🔻 **{row['Feature']}** ({row['Input Value']}) decreased PCOS risk.")
 
+        st.markdown("### 🧩 Model Interpretation Summary:")
+        for text in explanation_text:
+            st.markdown(text)
 
+        # Waterfall plot
+        shap.waterfall_plot(shap.Explanation(
+            values=shap_values.values[0],
+            base_values=shap_values.base_values[0],
+            data=features[0],
+            feature_names=shap_values.feature_names
+        ))
+        st.pyplot(plt)
 
+    except Exception as e:
+        st.warning(f"⚠️ SHAP explainability not supported in this environment. Error: {e}")
 
 
