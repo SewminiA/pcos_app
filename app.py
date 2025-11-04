@@ -98,41 +98,42 @@ if st.button("🔍 Predict PCOS Risk"):
         st.success(f"✅ Low Risk of PCOS (Confidence: {(1-probability)*100:.2f}%)")
 
     # -------------------------------
-    # 6. SHAP Explainability
     # -------------------------------
-    st.subheader("🧠 Model Interpretation using SHAP")
+# 6. SHAP Explainability (Safe Cloud Version)
+# -------------------------------
+st.subheader("🧠 Model Interpretation using SHAP")
 
-# ✅ Safe SHAP initialization for XGBoost models
 import shap
 
 try:
-    booster = model.get_booster()  # Extract booster safely
+    # Try using XGBoost booster first (most reliable)
+    booster = model.get_booster()
     explainer = shap.TreeExplainer(booster)
-except Exception as e:
-    st.warning("⚠️ SHAP initialization failed. Using approximate explainer.")
-    explainer = shap.Explainer(model)
+    shap_values = explainer.shap_values(input_df)
+except Exception as e1:
+    try:
+        # Try using TreeExplainer on model directly
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(input_df)
+    except Exception as e2:
+        st.warning("⚠️ SHAP visualization not supported in this environment.")
+        st.stop()
 
+# Bar chart of top features
+st.write("### Most Influential Features for this Prediction:")
+shap_df = pd.DataFrame({
+    'Feature': input_df.columns,
+    'SHAP Value': shap_values[0]
+}).sort_values(by='SHAP Value', key=abs, ascending=False)
 
-    shap_df = pd.DataFrame({
-        'Feature': input_df.columns,
-        'SHAP Value': shap_values[0]
-    }).sort_values(by='SHAP Value', key=abs, ascending=False)
+top_features = shap_df.head(5)
+st.table(top_features)
 
-    st.write("### 🔍 Most Influential Features for this Prediction:")
-    st.table(shap_df.head(5))
+# Optional SHAP plot
+fig, ax = plt.subplots()
+shap.summary_plot(shap_values, input_df, plot_type="bar", show=False)
+st.pyplot(fig)
 
-    # Bar plot of top SHAP features
-    fig, ax = plt.subplots()
-    shap.summary_plot(shap_values, input_df, plot_type="bar", show=False)
-    st.pyplot(fig)
-
-    # Optional: Force plot visualization (useful for local explanation)
-    st.write("### 🧩 SHAP Force Plot (Feature Impact on Prediction)")
-    shap.initjs()
-    force_plot_html = shap.force_plot(
-        explainer.expected_value, shap_values[0], input_df.iloc[0], matplotlib=True, show=False
-    )
-    st.pyplot(force_plot_html.figure)
 
 
 
