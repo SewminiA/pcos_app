@@ -106,7 +106,9 @@ if st.button("🔍 Predict PCOS Risk"):
     # -------------------------------
     st.subheader("🧠 Model Interpretation using SHAP")
 
-    explainer = shap.Explainer(model)
+    import shap
+
+    explainer = shap.TreeExplainer(model)
     shap_values = explainer(input_df)
 
     # Bar chart of top features
@@ -123,3 +125,4 @@ if st.button("🔍 Predict PCOS Risk"):
     fig, ax = plt.subplots()
     shap.plots.bar(shap_values, max_display=5, show=False)
     st.pyplot(fig)
+
