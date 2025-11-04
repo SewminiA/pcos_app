@@ -53,47 +53,51 @@ if st.button("Predict PCOS Risk"):
     st.subheader("🧠 Feature Contribution (SHAP Explanation)")
 
     try:
-        explainer = shap.Explainer(model)
-        shap_values = explainer(pd.DataFrame(features,
-            columns=['Weight (Kg)', 'Cycle(R/I)', 'FSH(mIU/mL)', 'LH(mIU/mL)',
-                     'FSH/LH', 'Waist:Hip Ratio', 'AMH(ng/mL)', 'PRL(ng/mL)',
-                     'Weight gain(Y/N)', 'hair growth(Y/N)',
-                     'Skin darkening (Y/N)', 'Follicle No. (L)',
-                     'Follicle No. (R)', 'Avg. F size (L) (mm)']))
+    # Use TreeExplainer explicitly for XGBoost
+    booster = model.get_booster()
+    explainer = shap.TreeExplainer(booster)
 
-        # Get feature importance values
-        feature_importance = pd.DataFrame({
-            'Feature': shap_values.feature_names,
-            'SHAP Value': shap_values.values[0],
-            'Input Value': features[0]
-        }).sort_values(by='SHAP Value', key=abs, ascending=False)
+    input_df = pd.DataFrame(features, columns=[
+        'Weight (Kg)', 'Cycle(R/I)', 'FSH(mIU/mL)', 'LH(mIU/mL)',
+        'FSH/LH', 'Waist:Hip Ratio', 'AMH(ng/mL)', 'PRL(ng/mL)',
+        'Weight gain(Y/N)', 'hair growth(Y/N)',
+        'Skin darkening (Y/N)', 'Follicle No. (L)',
+        'Follicle No. (R)', 'Avg. F size (L) (mm)'
+    ])
 
-        # Show top contributing features as a table
-        st.write("### Top Features Influencing This Prediction:")
-        st.dataframe(feature_importance.head(5))
+    shap_values = explainer.shap_values(input_df)
 
-        # Generate readable explanations
-        explanation_text = []
-        for _, row in feature_importance.head(5).iterrows():
-            if row['SHAP Value'] > 0:
-                explanation_text.append(f"🔺 **{row['Feature']}** ({row['Input Value']}) increased PCOS risk.")
-            else:
-                explanation_text.append(f"🔻 **{row['Feature']}** ({row['Input Value']}) decreased PCOS risk.")
+    # Feature importance values
+    feature_importance = pd.DataFrame({
+        'Feature': input_df.columns,
+        'SHAP Value': shap_values[0],
+        'Input Value': features[0]
+    }).sort_values(by='SHAP Value', key=abs, ascending=False)
 
-        st.markdown("### 🧩 Model Interpretation Summary:")
-        for text in explanation_text:
-            st.markdown(text)
+    # Display top influencing features
+    st.write("### Top Features Influencing This Prediction:")
+    st.dataframe(feature_importance.head(5))
 
-        # Waterfall plot
-        shap.waterfall_plot(shap.Explanation(
-            values=shap_values.values[0],
-            base_values=shap_values.base_values[0],
-            data=features[0],
-            feature_names=shap_values.feature_names
-        ))
-        st.pyplot(plt)
+    # Generate textual explanations
+    explanation_text = []
+    for _, row in feature_importance.head(5).iterrows():
+        if row['SHAP Value'] > 0:
+            explanation_text.append(f"🔺 **{row['Feature']}** ({row['Input Value']}) increased PCOS risk.")
+        else:
+            explanation_text.append(f"🔻 **{row['Feature']}** ({row['Input Value']}) decreased PCOS risk.")
 
-    except Exception as e:
-        st.warning(f"⚠️ SHAP explainability not supported in this environment. Error: {e}")
+    st.markdown("### 🧩 Model Interpretation Summary:")
+    for text in explanation_text:
+        st.markdown(text)
+
+    # SHAP Bar plot
+    fig, ax = plt.subplots()
+    shap.summary_plot(shap_values, input_df, plot_type="bar", show=False, max_display=5)
+    st.pyplot(fig)
+
+except Exception as e:
+    st.warning(f"⚠️ SHAP explainability not supported in this environment. Error: {e}")
+
+
 
 
