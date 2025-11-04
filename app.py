@@ -5,6 +5,7 @@ import shap
 import joblib
 import xgboost as xgb
 import matplotlib.pyplot as plt
+import os
 
 # -------------------------------
 # 1. Page Config
@@ -12,17 +13,13 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="PCOS Screening Tool", page_icon="💊", layout="centered")
 
 st.title("💊 PCOS Screening Tool (AI-powered)")
-st.markdown("This tool uses a trained machine learning model and SHAP explainability to predict and interpret PCOS risk.")
+st.markdown("This tool uses a trained XGBoost model and SHAP explainability to predict and interpret PCOS risk.")
 
 # -------------------------------
 # 2. Load Trained Model
 # -------------------------------
-import os
-
-
 @st.cache_resource
 def load_model():
-    # Get absolute path to ensure Streamlit finds the file
     current_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(current_dir, "best_xgb_model.pkl")
 
@@ -34,7 +31,6 @@ def load_model():
     return model
 
 model = load_model()
-
 
 # -------------------------------
 # 3. Define Input Features
@@ -87,7 +83,7 @@ def user_input():
 
 input_df = user_input()
 
-st.write("### Input Summary", input_df)
+st.write("### 🧾 Input Summary", input_df)
 
 # -------------------------------
 # 5. Predict Risk
@@ -106,23 +102,27 @@ if st.button("🔍 Predict PCOS Risk"):
     # -------------------------------
     st.subheader("🧠 Model Interpretation using SHAP")
 
-    import shap
-
     explainer = shap.TreeExplainer(model)
-    shap_values = explainer(input_df)
+    shap_values = explainer.shap_values(input_df)
 
-    # Bar chart of top features
-    st.write("### Most Influential Features for this Prediction:")
     shap_df = pd.DataFrame({
         'Feature': input_df.columns,
-        'SHAP Value': shap_values.values[0]
+        'SHAP Value': shap_values[0]
     }).sort_values(by='SHAP Value', key=abs, ascending=False)
 
-    top_features = shap_df.head(5)
-    st.table(top_features)
+    st.write("### 🔍 Most Influential Features for this Prediction:")
+    st.table(shap_df.head(5))
 
-    # Optional SHAP plot
+    # Bar plot of top SHAP features
     fig, ax = plt.subplots()
-    shap.plots.bar(shap_values, max_display=5, show=False)
+    shap.summary_plot(shap_values, input_df, plot_type="bar", show=False)
     st.pyplot(fig)
+
+    # Optional: Force plot visualization (useful for local explanation)
+    st.write("### 🧩 SHAP Force Plot (Feature Impact on Prediction)")
+    shap.initjs()
+    force_plot_html = shap.force_plot(
+        explainer.expected_value, shap_values[0], input_df.iloc[0], matplotlib=True, show=False
+    )
+    st.pyplot(force_plot_html.figure)
 
