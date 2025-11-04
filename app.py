@@ -50,10 +50,20 @@ if st.button("Predict PCOS Risk"):
     # -------------------------------
     st.subheader("🧠 Feature Contribution (SHAP Explanation)")
 
+        # -------------------------------
+    # 🧠 SHAP Explainability (Fixed)
+    # -------------------------------
+    import shap
+
+    st.subheader("🧠 Feature Contribution (SHAP Explanation)")
+
     try:
         # Use TreeExplainer explicitly for XGBoost
         booster = model.get_booster()
         explainer = shap.TreeExplainer(booster)
+
+        # Convert all features to float to prevent string issues
+        features = features.astype(float)
 
         input_df = pd.DataFrame(features, columns=[
             'Weight (Kg)', 'Cycle(R/I)', 'FSH(mIU/mL)', 'LH(mIU/mL)',
@@ -63,7 +73,7 @@ if st.button("Predict PCOS Risk"):
             'Follicle No. (R)', 'Avg. F size (L) (mm)'
         ])
 
-        shap_values = explainer.shap_values(input_df.astype(float))
+        shap_values = explainer.shap_values(input_df)
 
         # Feature importance values
         feature_importance = pd.DataFrame({
@@ -76,13 +86,13 @@ if st.button("Predict PCOS Risk"):
         st.write("### Top Features Influencing This Prediction:")
         st.dataframe(feature_importance.head(5))
 
-        # Generate textual explanations
+        # Generate readable explanations
         explanation_text = []
         for _, row in feature_importance.head(5).iterrows():
             if row['SHAP Value'] > 0:
-                explanation_text.append(f"🔺 **{row['Feature']}** ({row['Input Value']}) increased PCOS risk.")
+                explanation_text.append(f"🔺 **{row['Feature']}** ({row['Input Value']:.2f}) increased PCOS risk.")
             else:
-                explanation_text.append(f"🔻 **{row['Feature']}** ({row['Input Value']}) decreased PCOS risk.")
+                explanation_text.append(f"🔻 **{row['Feature']}** ({row['Input Value']:.2f}) decreased PCOS risk.")
 
         st.markdown("### 🧩 Model Interpretation Summary:")
         for text in explanation_text:
@@ -95,5 +105,7 @@ if st.button("Predict PCOS Risk"):
 
     except Exception as e:
         st.warning(f"⚠️ SHAP explainability not supported in this environment. Error: {e}")
+
+
 
 
