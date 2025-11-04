@@ -48,16 +48,7 @@ if st.button("Predict PCOS Risk"):
     # -------------------------------
     # 🧠 SHAP Explainability (Improved)
     # -------------------------------
- 
-
-        # -------------------------------
-    # 🧠 SHAP Explainability (Fixed)
-    # -------------------------------
-        # -------------------------------
-    # 🧠 SHAP Explainability (Final Fixed Version)
-    # -------------------------------
-    # -------------------------------
-# 🧠 SHAP Explainability with Medical-style Sentences
+# 🧠 SHAP Explainability with Human-friendly Medical Summary
 # -------------------------------
 import shap
 
@@ -66,7 +57,6 @@ st.subheader("🧠 Feature Contribution (SHAP Explanation)")
 try:
     # ✅ Clean numeric inputs
     features_clean = np.array(features, dtype=float)
-
     input_df = pd.DataFrame(features_clean, columns=[
         'Weight (Kg)', 'Cycle(R/I)', 'FSH(mIU/mL)', 'LH(mIU/mL)',
         'FSH/LH', 'Waist:Hip Ratio', 'AMH(ng/mL)', 'PRL(ng/mL)',
@@ -90,12 +80,14 @@ try:
 
     # ✅ Human-like explanation with cause phrases
     st.markdown("### 🧩 PCOS Risk Interpretation Summary:")
+    summary_sentences = []
+
     for _, row in feature_importance.head(5).iterrows():
         direction = "increased" if row['SHAP Value'] > 0 else "decreased"
         feature = row['Feature']
         value = row['Input Value']
 
-        # 💬 Add domain-related phrases for major features
+        # 💬 Domain-based explanations
         if "AMH" in feature:
             reason = "High AMH levels are linked with greater ovarian activity."
         elif "LH" in feature:
@@ -121,9 +113,23 @@ try:
         else:
             reason = "This feature influences PCOS risk through hormone or physical indicators."
 
-        st.markdown(
-            f"💡 **{feature}** (value: `{value:.2f}`) **{direction}** PCOS risk — {reason}"
-        )
+        sentence = f"💡 **{feature}** (value: `{value:.2f}`) **{direction}** PCOS risk — {reason}"
+        st.markdown(sentence)
+        summary_sentences.append(f"{feature} ({direction})")
+
+    # ✅ Final summary sentence
+    top_positive = [f for f, v in zip(feature_importance['Feature'], feature_importance['SHAP Value']) if v > 0]
+    top_negative = [f for f, v in zip(feature_importance['Feature'], feature_importance['SHAP Value']) if v < 0]
+
+    summary_text = "Based on your inputs, "
+    if top_positive:
+        summary_text += f"**{', '.join(top_positive[:2])}** contributed most to the *increased PCOS likelihood*"
+    if top_negative:
+        summary_text += f", while **{', '.join(top_negative[:2])}** helped *reduce* the risk."
+    summary_text += " 🩺"
+
+    st.markdown("### 🧠 Overall Summary:")
+    st.success(summary_text)
 
     # ✅ Visualization
     fig, ax = plt.subplots()
@@ -131,19 +137,17 @@ try:
     st.pyplot(fig)
 
 except Exception as e:
-    st.warning("⚠️ SHAP explanation could not be generated. Showing approximate feature importance.")
+    st.warning("⚠️ SHAP explanation not supported in this environment.")
+    st.info("Showing approximate feature importance instead.")
     importance_df = pd.DataFrame({
         'Feature': model.get_booster().feature_names,
         'Importance': model.feature_importances_
     }).sort_values(by='Importance', ascending=False)
     st.dataframe(importance_df.head(5))
-    st.markdown("""
-    _SHAP could not run in this environment (likely numeric format issue).
-    The above shows approximate feature importance instead._
-    """)
 
 
     
+
 
 
 
