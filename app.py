@@ -33,7 +33,7 @@ avg_size = st.number_input("Avg. F size (L) (mm)", 0.0, 30.0)
 # Arrange input in same order as model trained
 features = np.array([[weight, cycle, fsh, lh, fsh_lh, ratio, amh, prl,
                       weight_gain, hair_growth, skin_dark,
-                      follicle_L, follicle_R, avg_size]])
+                      follicle_L, follicle_R, avg_size]], dtype=float)
 
 if st.button("Predict PCOS Risk"):
     prediction = model.predict(features)[0]
@@ -95,4 +95,5 @@ if st.button("Predict PCOS Risk"):
 
     except Exception as e:
         st.warning(f"⚠️ SHAP explainability not supported in this environment. Error: {e}")
+
 
