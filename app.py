@@ -50,12 +50,15 @@ if st.button("Predict PCOS Risk"):
     # -------------------------------
 # 🧠 SHAP Explainability with Human-friendly Medical Summary
 # -------------------------------
+# -------------------------------
+# 🧠 SHAP Explainability (with readable medical phrases)
+# -------------------------------
 import shap
 
 st.subheader("🧠 Feature Contribution (SHAP Explanation)")
 
 try:
-    # ✅ Clean numeric inputs
+    # Convert to numeric safely
     features_clean = np.array(features, dtype=float)
     input_df = pd.DataFrame(features_clean, columns=[
         'Weight (Kg)', 'Cycle(R/I)', 'FSH(mIU/mL)', 'LH(mIU/mL)',
@@ -69,6 +72,7 @@ try:
     explainer = shap.TreeExplainer(booster)
     shap_values = explainer.shap_values(input_df)
 
+    # Feature importance
     feature_importance = pd.DataFrame({
         'Feature': input_df.columns,
         'SHAP Value': shap_values[0],
@@ -78,75 +82,81 @@ try:
     st.write("### 🔝 Top Features Influencing Prediction:")
     st.dataframe(feature_importance.head(5))
 
-    # ✅ Human-like explanation with cause phrases
+    # -------------------------
+    # Generate Explanation Phrases
+    # -------------------------
     st.markdown("### 🧩 PCOS Risk Interpretation Summary:")
-    summary_sentences = []
 
+    explanation_list = []
     for _, row in feature_importance.head(5).iterrows():
         direction = "increased" if row['SHAP Value'] > 0 else "decreased"
         feature = row['Feature']
         value = row['Input Value']
 
-        # 💬 Domain-based explanations
-        if "AMH" in feature:
-            reason = "High AMH levels are linked with greater ovarian activity."
-        elif "LH" in feature:
-            reason = "Elevated LH is commonly associated with hormonal imbalance in PCOS."
-        elif "FSH" in feature:
-            reason = "Low FSH may affect follicle growth and ovulation."
-        elif "FSH/LH" in feature:
-            reason = "A low FSH/LH ratio is a typical hormonal indicator of PCOS."
-        elif "Weight" in feature:
-            reason = "Higher weight can influence insulin resistance and hormone balance."
-        elif "Waist" in feature:
-            reason = "A high waist-to-hip ratio suggests fat distribution linked with PCOS risk."
-        elif "PRL" in feature:
-            reason = "Prolactin imbalance can affect reproductive hormones."
-        elif "hair" in feature:
-            reason = "Hair growth increase reflects androgen excess, a key PCOS feature."
-        elif "Skin" in feature:
-            reason = "Skin darkening indicates insulin-related hormonal effects."
-        elif "Follicle" in feature:
-            reason = "Follicle count changes reflect altered ovary response."
-        elif "F size" in feature:
-            reason = "Follicle size irregularity affects ovulation patterns."
-        else:
-            reason = "This feature influences PCOS risk through hormone or physical indicators."
+        # Domain-based reason mapping
+        reasons = {
+            "AMH": "High AMH levels are linked with greater ovarian activity.",
+            "LH": "Elevated LH indicates hormonal imbalance in PCOS.",
+            "FSH": "Low FSH can affect ovulation and follicle growth.",
+            "FSH/LH": "A low FSH/LH ratio is a typical hormonal indicator of PCOS.",
+            "Weight": "Higher weight influences insulin resistance and hormones.",
+            "Waist": "A high waist-to-hip ratio suggests fat distribution linked with PCOS.",
+            "PRL": "Prolactin imbalance can affect reproductive hormones.",
+            "hair": "Increased hair growth reflects androgen excess (common in PCOS).",
+            "Skin": "Skin darkening suggests insulin-related hormonal imbalance.",
+            "Follicle": "Follicle count changes reflect altered ovarian function.",
+            "F size": "Irregular follicle size affects ovulation patterns."
+        }
 
-        sentence = f"💡 **{feature}** (value: `{value:.2f}`) **{direction}** PCOS risk — {reason}"
-        st.markdown(sentence)
-        summary_sentences.append(f"{feature} ({direction})")
+        reason = next((reasons[k] for k in reasons if k in feature), 
+                      "This feature influences PCOS risk through hormonal or physical factors.")
 
-    # ✅ Final summary sentence
-    top_positive = [f for f, v in zip(feature_importance['Feature'], feature_importance['SHAP Value']) if v > 0]
-    top_negative = [f for f, v in zip(feature_importance['Feature'], feature_importance['SHAP Value']) if v < 0]
+        text = f"💡 **{feature}** (`{value:.2f}`) **{direction}** PCOS risk — {reason}"
+        st.markdown(text)
+        explanation_list.append(text)
 
-    summary_text = "Based on your inputs, "
-    if top_positive:
-        summary_text += f"**{', '.join(top_positive[:2])}** contributed most to the *increased PCOS likelihood*"
-    if top_negative:
-        summary_text += f", while **{', '.join(top_negative[:2])}** helped *reduce* the risk."
-    summary_text += " 🩺"
+    # -------------------------
+    # Final Summary Sentence
+    # -------------------------
+    positives = [f for f, v in zip(feature_importance['Feature'], feature_importance['SHAP Value']) if v > 0]
+    negatives = [f for f, v in zip(feature_importance['Feature'], feature_importance['SHAP Value']) if v < 0]
+
+    summary = "Based on your inputs, "
+    if positives:
+        summary += f"**{', '.join(positives[:2])}** contributed most to the *increased PCOS likelihood*"
+    if negatives:
+        summary += f", while **{', '.join(negatives[:2])}** helped *reduce* the risk."
+    summary += " 🩺"
 
     st.markdown("### 🧠 Overall Summary:")
-    st.success(summary_text)
+    st.success(summary)
 
-    # ✅ Visualization
+    # -------------------------
+    # SHAP Visualization
+    # -------------------------
     fig, ax = plt.subplots()
     shap.summary_plot(shap_values, input_df, plot_type="bar", show=False, max_display=5)
     st.pyplot(fig)
 
 except Exception as e:
     st.warning("⚠️ SHAP explanation not supported in this environment.")
-    st.info("Showing approximate feature importance instead.")
+    st.info("Using fallback explanation based on feature importance.")
     importance_df = pd.DataFrame({
         'Feature': model.get_booster().feature_names,
         'Importance': model.feature_importances_
     }).sort_values(by='Importance', ascending=False)
+
+    # Fallback: generate phrases anyway
+    st.write("### 🔝 Top Important Features:")
+    for f in importance_df['Feature'].head(5):
+        st.markdown(f"💡 **{f}** likely influences PCOS risk based on model training.")
+
     st.dataframe(importance_df.head(5))
 
 
+
     
+
 
 
 
