@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 # -----------------------------
 # Load trained XGBoost model
 # -----------------------------
-model = joblib.load("best_pcos_model.pkl")
+model = joblib.load("best_xgb_model.pkl")
 
 st.set_page_config(page_title="PCOS Risk Explanation", layout="wide")
 st.title("🌸 PCOS Risk Explainability (XAI) Dashboard")
@@ -130,4 +130,5 @@ if st.button("🔍 Analyze PCOS Risk"):
         for f in importance_df['Feature'].head(5):
             st.markdown(f"💡 **{f}** likely has strong influence on PCOS risk.")
         st.dataframe(importance_df.head(5))
+
 
