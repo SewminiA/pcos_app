@@ -6,44 +6,149 @@ import xgboost as xgb
 import joblib
 import matplotlib.pyplot as plt
 
-# Load trained model
-model = joblib.load("best_xgb_model.pkl")
+# -------------------------------------------
+# CONFIGURATION
+# -------------------------------------------
+st.set_page_config(
+    page_title="PCOS Pro - Risk Assessment",
+    page_icon="💊",
+    layout="wide",
+)
 
-# App title
-st.title("💊 PCOS Screening Tool")
+@st.cache_resource
+def load_model():
+    return joblib.load("best_xgb_model.pkl")
 
-st.write("Enter your clinical and hormonal data below to assess PCOS risk:")
+model = load_model()
 
-# User input
-weight = st.number_input("Weight (Kg)", 30, 150)
-cycle = st.selectbox("Cycle (R/I)", [0, 1])  # 0=Regular, 1=Irregular
-fsh = st.number_input("FSH (mIU/mL)", 0.1, 20.0)
-lh = st.number_input("LH (mIU/mL)", 0.1, 20.0)
-fsh_lh = st.number_input("FSH/LH", 0.1, 10.0)
-ratio = st.number_input("Waist:Hip Ratio", 0.5, 2.0)
-amh = st.number_input("AMH (ng/mL)", 0.1, 15.0)
-prl = st.number_input("PRL (ng/mL)", 1.0, 100.0)
-weight_gain = st.selectbox("Weight gain (Y/N)", [0, 1])
-hair_growth = st.selectbox("Hair growth (Y/N)", [0, 1])
-skin_dark = st.selectbox("Skin darkening (Y/N)", [0, 1])
-follicle_L = st.number_input("Follicle No. (L)", 0, 50)
-follicle_R = st.number_input("Follicle No. (R)", 0, 50)
-avg_size = st.number_input("Avg. F size (L) (mm)", 0.0, 30.0)
+# -------------------------------------------
+# GLOBAL STYLING
+# -------------------------------------------
+st.markdown("""
+<style>
+body {
+    background-color: #f9fafc;
+    font-family: 'Inter', sans-serif;
+}
+h1, h2, h3, h4 {
+    color: #2d3748;
+}
+.card {
+    background: #ffffff;
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    margin-bottom: 1.5rem;
+}
+.metric {
+    text-align: center;
+    background: #f1f5f9;
+    border-radius: 10px;
+    padding: 1rem;
+}
+.result-high {
+    background: linear-gradient(135deg, #ff6b6b, #fa5252);
+    color: white;
+    border-radius: 15px;
+    text-align: center;
+    padding: 2rem;
+}
+.result-low {
+    background: linear-gradient(135deg, #51cf66, #40c057);
+    color: white;
+    border-radius: 15px;
+    text-align: center;
+    padding: 2rem;
+}
+.stButton button {
+    background: #4c6ef5;
+    color: white;
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 10px;
+    font-weight: 600;
+    transition: 0.3s;
+}
+.stButton button:hover {
+    background: #364fc7;
+}
+</style>
+""", unsafe_allow_html=True)
 
-# Arrange input in same order as model trained
-features = np.array([[weight, cycle, fsh, lh, fsh_lh, ratio, amh, prl,
-                      weight_gain, hair_growth, skin_dark,
-                      follicle_L, follicle_R, avg_size]], dtype=float)
+# -------------------------------------------
+# HEADER
+# -------------------------------------------
+st.markdown("""
+<div style='text-align:center; margin-bottom: 2rem;'>
+    <h1>💊 PCOS Pro</h1>
+    <p style='color:#718096; font-size:1.1rem;'>Comprehensive Polycystic Ovary Syndrome Risk Assessment</p>
+</div>
+""", unsafe_allow_html=True)
 
-if st.button("Predict PCOS Risk"):
-    prediction = model.predict(features)[0]
+# -------------------------------------------
+# INPUT SECTION
+# -------------------------------------------
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("### 📋 Clinical Data")
+    weight = st.number_input("Weight (kg)", 30, 150, 65)
+    cycle = st.selectbox("Menstrual Cycle", ["Regular", "Irregular"])
+    ratio = st.number_input("Waist:Hip Ratio", 0.5, 1.2, 0.85)
+    weight_gain = st.radio("Weight Gain", ["No", "Yes"], horizontal=True)
+    hair_growth = st.radio("Hair Growth", ["No", "Yes"], horizontal=True)
+    skin_dark = st.radio("Skin Darkening", ["No", "Yes"], horizontal=True)
+
+with col2:
+    st.markdown("### 🔬 Hormonal & Ultrasound Data")
+    fsh = st.slider("FSH (mIU/mL)", 0.1, 20.0, 6.0, 0.1)
+    lh = st.slider("LH (mIU/mL)", 0.1, 20.0, 8.0, 0.1)
+    amh = st.slider("AMH (ng/mL)", 0.1, 15.0, 4.5, 0.1)
+    prl = st.slider("Prolactin (ng/mL)", 1.0, 100.0, 18.0, 0.1)
+    follicle_L = st.slider("Left Follicle Count", 0, 50, 12)
+    follicle_R = st.slider("Right Follicle Count", 0, 50, 10)
+
+# Derived values
+cycle_num = 1 if cycle == "Irregular" else 0
+weight_gain_num = 1 if weight_gain == "Yes" else 0
+hair_growth_num = 1 if hair_growth == "Yes" else 0
+skin_dark_num = 1 if skin_dark == "Yes" else 0
+fsh_lh = fsh / lh if lh > 0 else 0
+avg_size = 0.0
+
+features = np.array([[weight, cycle_num, fsh, lh, fsh_lh, ratio, amh, prl,
+                     weight_gain_num, hair_growth_num, skin_dark_num,
+                     follicle_L, follicle_R, avg_size]], dtype=float)
+
+st.markdown("---")
+
+# -------------------------------------------
+# PREDICTION
+# -------------------------------------------
+if st.button("🎯 Assess PCOS Risk", use_container_width=True):
+
+    pred = model.predict(features)[0]
     prob = model.predict_proba(features)[0][1]
 
-    st.subheader("🔍 Prediction Result:")
-    if prediction == 1:
-        st.error(f"⚠️ High Risk of PCOS (Probability: {prob:.2f})")
+    st.markdown("## 🩺 Assessment Result")
+
+    if pred == 1:
+        st.markdown(f"""
+        <div class="result-high">
+            <h2>⚠️ High PCOS Risk Detected</h2>
+            <p style='font-size:1.3rem;'>Risk Probability: <b>{prob:.1%}</b></p>
+            <p>Immediate consultation with a gynecologist is recommended.</p>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        st.success(f"✅ Low Risk of PCOS (Probability: {prob:.2f})")
+        st.markdown(f"""
+        <div class="result-low">
+            <h2>✅ Low PCOS Risk</h2>
+            <p style='font-size:1.3rem;'>Risk Probability: <b>{prob:.1%}</b></p>
+            <p>Continue regular health monitoring and a balanced lifestyle.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
 
     # -------------------------------
     # 🧠 SHAP Explainability (Improved)
@@ -156,6 +261,7 @@ except Exception as e:
 
 
     
+
 
 
 
